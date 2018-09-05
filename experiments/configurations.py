@@ -46,6 +46,7 @@ class MUUD_Configuration(Configuration):
         
         self.seed=10
         np.random.seed(self.seed)
+        
         # true mean rewards
         self.mu = np.random.rand(self.K)
         self.best_arm = np.argmax(self.mu)
@@ -60,7 +61,9 @@ class MUUD_Configuration(Configuration):
         """
         Generates the values of all the rewards
         """
-        np.random.seed(self.seed + 3)
+        self.seed += 3
+        np.random.seed(self.seed)
+        
         # bernoulli rewards of each arm at each time instant
         self.X = np.random.binomial(1, self.mu, size=(self.N,self.K))
         

@@ -21,13 +21,12 @@ class Executor:
         Each policy is run num_repetition times.
         Results are written on a pikle file
         """
-        for ii in range(num_repetitions):
-            experiment = Experiment(config)
-            #execute policies
-            for policy in policies:
-                pulls, rewards, switch_fees = self.run_policy(experiment.config, policy)
-                experiment.set_results(pulls, rewards, switch_fees, policy.name)
-            experiment.save_results('results/'+ config.name + '/exp' + str(ii) + '.pkl')
+        for policy in policies:
+            for ii in range(num_repetitions):
+                experiment = Experiment(config, policy)
+                pulls, rewards, switch_fees = self.run_policy(experiment.config,policy)
+                experiment.set_results(pulls, rewards, switch_fees)
+                experiment.save_results('results/' + config.name + '/' + policy.name + '/exp' + str(ii) + '.pkl')
 
     
     
@@ -37,6 +36,7 @@ class Executor:
         """
         policy.reset_state(config.K)
         
+        #switching costs are deterministic or stochastic depending on their shape
         isDeterministic = len(config.switch_costs.shape) == 2
         
         #for each arm, number of failures successes and pulls

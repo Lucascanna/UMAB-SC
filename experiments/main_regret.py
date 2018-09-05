@@ -10,49 +10,58 @@ import os
 
 from DataLoader import DataLoader
 from Setting import Setting
-from Plotter import Plotter
-
-def compute_plot_regret(config_name):
+from Plotter import Plotter    
     
+def plot_configuration(config_name):
+    
+    #set the regrets
     setting = Setting()
-    
     regrets = setting.set_regrets()
     num_regrets = len(regrets)
     
-    loader = DataLoader()
-        
-    experiments = loader.load_experiments('results/'+config_name)
-    num_exp = len(experiments)
+    #load experiments
+    loader = DataLoader()  
+    experiments = loader.load_config_experiments(config_name)
+    num_exp = len(list(experiments.values())[0])
     
-    N = experiments[0].config.N
-    policies = list(experiments[0].pulls.keys())
+    #retrive time horizon
+    N = list(experiments.values())[0][0].config.N
+    
+    #retrive policies
+    policies=[]
+    for exp_list in experiments.values():
+        policies = policies + [exp_list[0].policy]
     num_policies = len(policies)
 
-    
-    regret = np.zeros((num_policies, num_regrets, N))
+    #compute the regrets
+    regret = np.zeros((num_exp, num_policies, num_regrets, N))
     for pol_idx in range(num_policies):
         curr_policy = policies[pol_idx]
         for exp_idx in range(num_exp):
-            curr_exp = experiments[exp_idx]
-            pulls = curr_exp.pulls[curr_policy]
+            curr_exp = experiments[curr_policy.name][exp_idx]
+            pulls = curr_exp.pulls
             for reg_idx in range(num_regrets):
                 curr_regr = regrets[reg_idx]
-                regr = curr_regr.compute_regret(pulls, curr_exp.config)
-                regret[pol_idx, reg_idx, :] = regret[pol_idx, reg_idx, :] + np.true_divide(regr, num_exp)
-            
+                regret[exp_idx, pol_idx, reg_idx, :] = curr_regr.compute_regret(pulls, curr_exp.config)
+    mean_regret = np.mean(regret, axis=0)
+    
+    #TODO: varianza del regret
+    std_regret = np.std(regret, axis=0)
+    up = mean_regret + 2*np.true_divide(std_regret, num_exp**0.5)
+    low = mean_regret - 2*np.true_divide(std_regret, num_exp**0.5)
     
     #plot the regrets
     titles = []
     filename = config_name + '_'
     for policy in policies:
-        filename = filename + policy + '-'
+        filename = filename + policy.name + '-'
     filename = filename[:-1] + '_'
     for reg_type in regrets:
         titles = titles + [reg_type.description]
         filename = filename + reg_type.name + '-'
     
     plt = Plotter()
-    plt.plot_regret(regret, titles, policies, filename[:-1])
+    plt.plot_regret(mean_regret, titles, policies, filename[:-1])
     
     
     
@@ -61,8 +70,8 @@ def main():
     for dir_name in os.listdir('results'):
         print('Regret of configuration: ', dir_name)
         start_time = time.clock()
-        
-        compute_plot_regret(dir_name)
+       
+        plot_configuration(dir_name)
         
         exp_time = time.clock() - start_time
         print('TIME TO COMPUTE AND PLOT REGRET OF ', dir_name , 'CONFIGURATION: ', exp_time)

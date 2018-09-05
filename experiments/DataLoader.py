@@ -9,11 +9,13 @@ import os
 
 class DataLoader():
     
-    def load_experiments(self, path):
-        experiments = []
-        for filename in os.listdir(path):
-            exp = pk.load(open(path + '/' + filename, 'rb'))
-            experiments.append(exp)
-        
+    def load_config_experiments(self, config_name):
+    
+        experiments = {}
+        for policy_name in os.listdir('results/'+config_name):
+            experiments[policy_name]=[]
+            for filename in os.listdir('results/'+config_name+'/'+policy_name):
+                exp = pk.load(open('results/'+config_name+'/'+policy_name+'/'+filename, 'rb'))
+                experiments[policy_name].append(exp)
         return experiments
         

@@ -15,7 +15,7 @@ class Plotter():
     The class in charge of plotting the resulting regrets
     """
     
-    def plot_regret(self, regrets, titles, labels, filename):
+    def plot_regret(self, regrets, titles, policies, filename):
         """
         Each subplot refers to a specific regret.
         In each subplot the regret of all the policies
@@ -28,6 +28,9 @@ class Plotter():
         n = np.arange(N)
         
         colors = list(mcolors.BASE_COLORS.keys())
+        labels = []
+        for policy in policies:
+            labels = labels + [policy.name]
     
         plt.figure(1, figsize=(3.5*num_plots,5))
             
