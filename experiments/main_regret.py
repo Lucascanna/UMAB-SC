@@ -24,8 +24,11 @@ def plot_configuration(config_name):
     experiments = loader.load_config_experiments(config_name)
     num_exp = len(list(experiments.values())[0])
     
+    #retrieve configuration
+    config = list(experiments.values())[0][0].config
+    
     #retrive time horizon
-    N = list(experiments.values())[0][0].config.N
+    N = config.N
     
     #retrive policies
     policies=[]
@@ -43,25 +46,33 @@ def plot_configuration(config_name):
             for reg_idx in range(num_regrets):
                 curr_regr = regrets[reg_idx]
                 regret[exp_idx, pol_idx, reg_idx, :] = curr_regr.compute_regret(pulls, curr_exp.config)
+                
     mean_regret = np.mean(regret, axis=0)
     
-    #TODO: varianza del regret
+    #varianza del regret
     std_regret = np.std(regret, axis=0)
-    up = mean_regret + 2*np.true_divide(std_regret, num_exp**0.5)
-    low = mean_regret - 2*np.true_divide(std_regret, num_exp**0.5)
+    error = 2*np.true_divide(std_regret, num_exp**0.5)
+    
+    #compute theoretical bounds
+    th_bounds = np.zeros((num_policies, num_regrets, N))
+    for pol_idx in range(num_policies):
+        for reg_idx in range(num_regrets):
+            th_bounds[pol_idx, reg_idx, :] = policies[pol_idx].theoretical_bound(config, regrets[reg_idx])
     
     #plot the regrets
     titles = []
+    labels = []
     filename = config_name + '_'
     for policy in policies:
         filename = filename + policy.name + '-'
+        labels = labels + [policy.name]
     filename = filename[:-1] + '_'
     for reg_type in regrets:
         titles = titles + [reg_type.description]
         filename = filename + reg_type.name + '-'
     
     plt = Plotter()
-    plt.plot_regret(mean_regret, titles, policies, filename[:-1])
+    plt.plot_regret(mean_regret, error, th_bounds, titles, labels, filename[:-1])
     
     
     

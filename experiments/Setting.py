@@ -22,7 +22,7 @@ class Setting():
                     #TS_Policy(),
                     #TS2_Policy(),
                     #KLUCB_Policy(),
-                    #UCYCLE_Policy()
+                    UCYCLE_Policy()
                     #UCB1SC_Policy()
                     ]
         return policies

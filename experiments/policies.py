@@ -8,6 +8,7 @@ Created on Wed Jul 18 17:02:18 2018
 from abc import ABC, abstractmethod
 from math import e, log, ceil, pi
 from scipy.optimize import newton
+from regrets import SamplingRegret, SwitchingRegret, TotalRegret
 import numpy as np
 
 #%%
@@ -43,16 +44,9 @@ class Policy(ABC):
         pass
     
     @abstractmethod
-    def theoretical_sampling_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
         """
         Computes the theoretical bound of the sampling regret
-        """
-        pass
-    
-    @abstractmethod
-    def theoretical_switch_bound(self, config):
-        """
-        Computes the theoretical bound of the switching regret
         """
         pass
     
@@ -90,28 +84,26 @@ class UCB1_Policy(Policy):
         self.K = K
     
     
-    def theoretical_sampling_bound(self, config):
-        n = np.arange(config.N)
-        
+    def theoretical_bound(self, config, regret=None):
+        n = np.arange(config.N)+1
         arms = np.arange(config.K)
-        suboptimal_arms = np.concatenate(arms[:config.best_arm], arms[config.best_arm + 1:])
+        suboptimal_arms = np.delete(arms, config.best_arm)
         suboptimal_mu = config.mu[suboptimal_arms]
         delta = config.mu_max - suboptimal_mu
         
-        bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta)
-        return bound
-    
-    
-    def theoretical_switch_bound(self, config):
-        n = np.arange(config.N)
+        if type(regret) == SamplingRegret:            
+            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta)
+            return bound
         
-        arms = np.arange(config.K)
-        suboptimal_arms = np.concatenate(arms[:config.best_arm], arms[config.best_arm + 1:])
-        suboptimal_mu = config.mu[suboptimal_arms]
-        delta = config.mu_max - suboptimal_mu
+        if type(regret) == SwitchingRegret:
+            bound = 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            return bound
         
-        bound = 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
-        return bound
+        if type(regret) == TotalRegret:
+            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta) + 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            return bound
+        
+        print("Error! Default implementation executed!")
         
     
 #%%
@@ -170,23 +162,38 @@ class UCB2_Policy(Policy):
     def __tau(self, r):
         return np.ceil(np.power(1+self.alpha, r))
     
-    def theoretical_sampling_bound(self, config):
-        n = np.arange(config.N)
+    def theoretical_bound(self, config, regret=None):
+        n = np.arange(config.N)+1
         
         arms = np.arange(config.K)
-        suboptimal_arms = np.concatenate(arms[:config.best_arm], arms[config.best_arm + 1:])
+        suboptimal_arms = np.delete(arms, config.best_arm)
         suboptimal_mu = config.mu[suboptimal_arms]
         delta = config.mu_max - suboptimal_mu
         
         c_alpha = 1 + ((1 + self.alpha)*e)/(self.alpha**2) + (((1+self.alpha)/self.alpha)**(1+self.alpha))*(1+(11*(1+self.alpha))/(5*(self.alpha**2)*log(1+self.alpha)))
-        bound = 0
-        for delta_i in delta:
-            bound = bound + (((1+self.alpha)*(1+4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
-        return bound
         
-    
-    def theoretical_switch_bound(self, config):
-        pass
+        if type(regret) == SamplingRegret:            
+            bound = 0
+            for delta_i in delta:
+                bound = bound + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
+                return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound=0
+            for delta_i in delta:
+                bound = bound + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha)) 
+            return bound*2
+        
+        if type(regret) == TotalRegret:
+            bound_samp = 0
+            bound_sw = 0
+            for delta_i in delta:
+                bound_samp = bound_samp + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
+                bound_sw = bound_sw + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha))
+            return bound_samp + bound_sw
+        
+        print("Error! Default implementation executed!")
+        
 
 #%%
     
@@ -227,12 +234,9 @@ class KLUCB_Policy(Policy):
         self.K = K
     
     
-    def theoretical_sampling_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
         pass
     
-    
-    def theoretical_switch_bound(self, config):
-        pass
 
 #%%
     
@@ -285,11 +289,27 @@ class UCYCLE_Policy(Policy):
         self.epoch_steps = 0
     
     
-    def theoretical_sampling_bound(self, config):
-        pass
-    
-    
-    def theoretical_switch_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
+#        n = np.arange(config.N)+1
+#        arms = np.arange(config.K)
+#        suboptimal_arms = np.delete(arms, config.best_arm)
+#        suboptimal_mu = config.mu[suboptimal_arms]
+#        delta = config.mu_max - suboptimal_mu
+#        delta_min = np.min(delta)
+#        
+#        if type(regret) == SamplingRegret:            
+#            bound = np.true_divide(48*config.K*np.log(np.true_divide(config.K*(n**4), self.delta)), delta_min) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K))
+#            return bound
+#        
+#        if type(regret) == SwitchingRegret:
+#            bound = config.K*np.log(np.true_divide(2*n, config.K))
+#            return bound
+#        
+#        if type(regret) == TotalRegret:
+#            bound = np.true_divide(48*config.K*np.log(np.true_divide(config.K*(n**4), self.delta)), delta_min) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K)) + config.K*np.log(np.true_divide(2*n, config.K))
+#            return bound
+#        
+#        print("Error! Default implementation executed!")
         pass
     
 
@@ -316,11 +336,7 @@ class TS_Policy(Policy):
         
     
     
-    def theoretical_sampling_bound(self, config):
-        pass
-    
-    
-    def theoretical_switch_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
         pass
 
 #%%
@@ -370,14 +386,8 @@ class TS2_Policy(Policy):
         self.epochs_arm = np.zeros(K, dtype=np.int32)
     
     
-    def theoretical_sampling_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
         pass
-    
-    
-    def theoretical_switch_bound(self, config):
-        pass
-
-
 
 #%%
         
@@ -433,8 +443,5 @@ class UCB1SC_Policy(Policy):
         self.end_init_phase = K**2 - 1
         self.current_arm = -1
     
-    def theoretical_sampling_bound(self, config):
-        pass
-    
-    def theoretical_switch_bound(self, config):
+    def theoretical_bound(self, config, regret=None):
         pass

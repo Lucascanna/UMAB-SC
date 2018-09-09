@@ -15,7 +15,7 @@ class Plotter():
     The class in charge of plotting the resulting regrets
     """
     
-    def plot_regret(self, regrets, titles, policies, filename):
+    def plot_regret(self, regrets, error, th_bounds, titles, labels, filename):
         """
         Each subplot refers to a specific regret.
         In each subplot the regret of all the policies
@@ -28,9 +28,7 @@ class Plotter():
         n = np.arange(N)
         
         colors = list(mcolors.BASE_COLORS.keys())
-        labels = []
-        for policy in policies:
-            labels = labels + [policy.name]
+        err_colors = ['lightblue', 'lightgreen', 'tomato', 'lavender', 'plum', 'goldenrod', 'grey', 'beige']
     
         plt.figure(1, figsize=(3.5*num_plots,5))
             
@@ -40,7 +38,8 @@ class Plotter():
             plt.xlabel('t')
             lines=[]
             for jj in range(num_lines):
-                line = plt.plot(n, regrets[jj, ii, :], colors[jj]+'-', label=labels[jj])[0]
+                line = plt.errorbar(n, regrets[jj, ii, :], yerr=error[jj, ii, :], fmt=colors[jj]+'-', ecolor=err_colors[jj], label=labels[jj])[0]
+                #plt.plot(n, th_bounds[jj, ii, :], colors[jj]+'--')
                 lines.append(line)
                 
         plt.subplots_adjust(top=2, hspace=0.5)
