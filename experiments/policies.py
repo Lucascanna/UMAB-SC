@@ -7,7 +7,6 @@ Created on Wed Jul 18 17:02:18 2018
 
 from abc import ABC, abstractmethod
 from math import e, log, ceil, pi
-from scipy.optimize import newton
 from regrets import SamplingRegret, SwitchingRegret, TotalRegret
 import numpy as np
 
@@ -49,6 +48,15 @@ class Policy(ABC):
         Computes the theoretical bound of the sampling regret
         """
         pass
+    
+    def kl(self, p, q):
+        """
+        The KL-divergence of Bernoulli distributions
+        """
+        eps = 1e-15  # Threshold value: everything in [0, 1] is truncated to [eps, 1 - eps] 
+        p = min(max(p, eps), 1 - eps)
+        q = min(max(q, eps), 1 - eps)
+        return p * log(p / q) + (1 - p) * log((1 - p) / (1 - q))
     
     
     
@@ -92,15 +100,33 @@ class UCB1_Policy(Policy):
         delta = config.mu_max - suboptimal_mu
         
         if type(regret) == SamplingRegret:            
-            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta)
+            #con costanti additive
+            #bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta)
+            
+            #senza costanti additive
+            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta))
+            
+            bound = np.insert(bound[:-1],0,0)
             return bound
         
         if type(regret) == SwitchingRegret:
-            bound = 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            #con costanti additive
+            #bound = 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            
+            #senza costanti additive
+            bound = 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            
+            bound = np.insert(bound[:-1],0,0)
             return bound
         
         if type(regret) == TotalRegret:
-            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta) + 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            #con costanti additive
+            #bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + (1 + (pi**2)/3)*np.sum(delta) + 2*config.K*(1 + (pi**2)/3) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            
+            #senza costanti additive
+            bound = 8*np.log(n)*np.sum(np.true_divide(1, delta)) + 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            
+            bound = np.insert(bound[:-1],0,0)
             return bound
         
         print("Error! Default implementation executed!")
@@ -163,34 +189,58 @@ class UCB2_Policy(Policy):
         return np.ceil(np.power(1+self.alpha, r))
     
     def theoretical_bound(self, config, regret=None):
-        n = np.arange(config.N)+1
         
         arms = np.arange(config.K)
         suboptimal_arms = np.delete(arms, config.best_arm)
         suboptimal_mu = config.mu[suboptimal_arms]
         delta = config.mu_max - suboptimal_mu
+        delta_min = np.min(delta)
+        start = 1/(2*(delta_min**2))
+        n = np.arange(config.N)+ceil(start)
         
-        c_alpha = 1 + ((1 + self.alpha)*e)/(self.alpha**2) + (((1+self.alpha)/self.alpha)**(1+self.alpha))*(1+(11*(1+self.alpha))/(5*(self.alpha**2)*log(1+self.alpha)))
+        initial_regret = np.arange(ceil(start))
+        
+        #c_alpha = 1 + ((1 + self.alpha)*e)/(self.alpha**2) + (((1+self.alpha)/self.alpha)**(1+self.alpha))*(1+(11*(1+self.alpha))/(5*(self.alpha**2)*log(1+self.alpha)))
         
         if type(regret) == SamplingRegret:            
             bound = 0
             for delta_i in delta:
-                bound = bound + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
-                return bound
+                #con costanti additive
+                #bound = bound + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
+                
+                # senza costanti additive
+                bound = bound + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i))
+            
+            bound = np.insert(bound[:-ceil(start)],0,initial_regret)
+            return bound
         
         if type(regret) == SwitchingRegret:
             bound=0
             for delta_i in delta:
-                bound = bound + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha)) 
+                #con costanti additive
+                #bound = bound + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha))
+                
+                #senza costanti additive
+                bound = bound + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))), np.log(1+self.alpha))
+                
+            bound = np.insert(bound[:-ceil(start)],0,initial_regret)    
             return bound*2
         
         if type(regret) == TotalRegret:
             bound_samp = 0
             bound_sw = 0
             for delta_i in delta:
-                bound_samp = bound_samp + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
-                bound_sw = bound_sw + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha))
-            return bound_samp + bound_sw
+                #con costanti additive
+                #bound_samp = bound_samp + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i) + c_alpha/delta_i)
+                #bound_sw = bound_sw + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))+ c_alpha/(delta_i**2) + 1), np.log(1+self.alpha))
+                
+                #senza costanti additive
+                bound_samp = bound_samp + (((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*delta_i))
+                bound_sw = bound_sw + np.true_divide(np.log(((1+self.alpha)*(1 + 4*self.alpha)*np.log(2*e*n*(delta_i**2)))/(2*(delta_i**2))), np.log(1+self.alpha))
+                
+            bound = bound_samp + bound_sw
+            bound = np.insert(bound[:-ceil(start)],0,initial_regret)
+            return bound
         
         print("Error! Default implementation executed!")
         
@@ -216,26 +266,66 @@ class KLUCB_Policy(Policy):
         T = p0 + p1
         mu_hat = np.true_divide(p1, T)
         
-        b = np.empty(self.K)
-        for ii in range(self.K):
-            b[ii] = newton(self.__kl_func, x0=0.5, fprime=self.__kl_fprime, args=(T[ii], mu_hat[ii], n))
-        u = mu_hat + b
+        compute_indexes = np.vectorize(self.__compute_arm_index)
+        q = compute_indexes(mu_hat, np.log(n)/T)
         
-        return np.argmax(u)
+        return np.argmax(q)
     
-    def __kl_func(self, q, T, p, n):
-        return T*(p*log(p/q) + (1-p)*log((1-p)/(1-q))) - log(n)
-    
-    def __kl_fprime(self, q, T, p, n):
-        return -(T*p)/q + (T*(1-p))/(1-q)
-    
+    def __compute_arm_index(self, x, d, upperbound=1, lowerbound=0):
+        precision=1e-6
+        max_iterations=50
+        
+        value = max(x, lowerbound)
+        u = upperbound
+        
+        _count_iteration = 0
+        while _count_iteration < max_iterations and u - value > precision:
+            _count_iteration += 1
+            m = (value + u) / 2.
+            if self.kl(x, m) > d:
+                u = m
+            else:
+                value = m
+                
+        return (value + u) / 2
+        
     
     def reset_state(self, K):
         self.K = K
     
     
     def theoretical_bound(self, config, regret=None):
-        pass
+        n = np.arange(config.N)+2
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        delta = config.mu_max - suboptimal_mu
+        
+        kl_vect = np.vectorize(self.kl)
+        
+        if type(regret) == SamplingRegret:            
+    
+            #senza costanti additive
+            bound = np.log(n)*np.sum(np.true_divide(delta, kl_vect(suboptimal_mu, config.mu_max))) + np.log(np.log(n))
+            
+            bound = np.insert(bound[:-2],0,[0,0])
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            
+            #senza costanti additive
+            bound = 2*np.log(n)*np.sum(np.true_divide(1, kl_vect(suboptimal_mu, config.mu_max))) + 2*config.K*np.log(np.log(n))
+            
+            bound = np.insert(bound[:-2],0,[0,0])
+            return bound
+        
+        if type(regret) == TotalRegret:
+        
+            #senza costanti additive
+            bound = np.log(n)*np.sum(np.true_divide(delta, kl_vect(suboptimal_mu, config.mu_max))) + np.log(np.log(n)) + 2*np.log(n)*np.sum(np.true_divide(1, kl_vect(suboptimal_mu, config.mu_max))) + 2*config.K*np.log(np.log(n))
+            
+            bound = np.insert(bound[:-2],0,[0,0])
+            return bound
     
 
 #%%
@@ -290,27 +380,33 @@ class UCYCLE_Policy(Policy):
     
     
     def theoretical_bound(self, config, regret=None):
-#        n = np.arange(config.N)+1
-#        arms = np.arange(config.K)
-#        suboptimal_arms = np.delete(arms, config.best_arm)
-#        suboptimal_mu = config.mu[suboptimal_arms]
-#        delta = config.mu_max - suboptimal_mu
-#        delta_min = np.min(delta)
-#        
-#        if type(regret) == SamplingRegret:            
-#            bound = np.true_divide(48*config.K*np.log(np.true_divide(config.K*(n**4), self.delta)), delta_min) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K))
-#            return bound
-#        
-#        if type(regret) == SwitchingRegret:
-#            bound = config.K*np.log(np.true_divide(2*n, config.K))
-#            return bound
-#        
-#        if type(regret) == TotalRegret:
-#            bound = np.true_divide(48*config.K*np.log(np.true_divide(config.K*(n**4), self.delta)), delta_min) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K)) + config.K*np.log(np.true_divide(2*n, config.K))
-#            return bound
-#        
-#        print("Error! Default implementation executed!")
-        pass
+        n = np.arange(config.N)+1
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        delta = config.mu_max - suboptimal_mu
+        delta_min = np.min(delta)
+        
+        if type(regret) == SamplingRegret:            
+            bound = (48*config.K/delta_min)*np.log(np.true_divide(config.K*(n**4), self.delta)) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound = config.K*np.log(np.true_divide(2*n, config.K))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == TotalRegret:
+            bound = np.true_divide(48*config.K*np.log(np.true_divide(config.K*(n**4), self.delta)), delta_min) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K)) + config.K*np.log(np.true_divide(2*n, config.K))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        print("Error! Default implementation executed!")
+        
     
 
 #%%
@@ -335,9 +431,28 @@ class TS_Policy(Policy):
         self.K = K
         
     
-    
+    #constants are missing
     def theoretical_bound(self, config, regret=None):
-        pass
+        n = np.arange(config.N)+2
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        delta = config.mu_max - suboptimal_mu
+        kl_vect = np.vectorize(self.kl)
+        
+        if type(regret) == SamplingRegret:   
+            bound = (np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(delta, kl_vect(suboptimal_mu, config.mu_max)))
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound = 2*(np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(1, kl_vect(suboptimal_mu, config.mu_max)))
+            return bound
+        
+        if type(regret) == TotalRegret:
+            bound = (np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(delta, kl_vect(suboptimal_mu, config.mu_max))) + 2*(np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(1, kl_vect(suboptimal_mu, config.mu_max)))
+            return bound
+        
+        print("Error! Default implementation executed!")
 
 #%%
 

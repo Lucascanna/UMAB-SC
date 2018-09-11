@@ -5,7 +5,7 @@ Created on Mon Jul 23 15:15:15 2018
 @author: lucas
 """
 
-from policies import UCB1_Policy, UCB2_Policy, TS_Policy, TS2_Policy, KLUCB_Policy, UCYCLE_Policy
+from policies import UCB1_Policy, UCB2_Policy, TS_Policy, TS2_Policy, KLUCB_Policy, UCYCLE_Policy, UCB1SC_Policy
 from regrets import SamplingRegret, SwitchingRegret, TotalRegret
 from configurations import MUUD_Configuration, MUUS_Configuration
 
@@ -19,11 +19,11 @@ class Setting():
         policies = [
                     UCB1_Policy(), 
                     UCB2_Policy(),
-                    #TS_Policy(),
-                    #TS2_Policy(),
+                    TS_Policy(),
+                    TS2_Policy(),
                     #KLUCB_Policy(),
-                    UCYCLE_Policy()
-                    #UCB1SC_Policy()
+                    UCYCLE_Policy(),
+                    UCB1SC_Policy()
                     ]
         return policies
     
@@ -31,7 +31,7 @@ class Setting():
     def set_configurations(self, N):
         configs = [
                     MUUD_Configuration(N),
-                    MUUS_Configuration(N)
+                    #MUUS_Configuration(N)
                     ]
         return configs
     

@@ -9,10 +9,13 @@ import os
 
 class DataLoader():
     
-    def load_config_experiments(self, config_name):
+    def load_config_experiments(self, config_name, policy_names):
+        
+        if not set(policy_names).issubset(os.listdir('results/'+config_name)):
+            raise LookupError("There are no experiments for these policies")
     
         experiments = {}
-        for policy_name in os.listdir('results/'+config_name):
+        for policy_name in policy_names:
             experiments[policy_name]=[]
             for filename in os.listdir('results/'+config_name+'/'+policy_name):
                 exp = pk.load(open('results/'+config_name+'/'+policy_name+'/'+filename, 'rb'))

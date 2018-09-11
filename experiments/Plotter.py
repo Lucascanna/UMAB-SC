@@ -39,7 +39,7 @@ class Plotter():
             lines=[]
             for jj in range(num_lines):
                 line = plt.errorbar(n, regrets[jj, ii, :], yerr=error[jj, ii, :], fmt=colors[jj]+'-', ecolor=err_colors[jj], label=labels[jj])[0]
-                #plt.plot(n, th_bounds[jj, ii, :], colors[jj]+'--')
+                plt.plot(n, th_bounds[jj, ii, :], colors[jj]+'--')
                 lines.append(line)
                 
         plt.subplots_adjust(top=2, hspace=0.5)

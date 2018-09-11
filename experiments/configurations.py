@@ -61,7 +61,7 @@ class MUUD_Configuration(Configuration):
         """
         Generates the values of all the rewards
         """
-        self.seed += 3
+        self.seed += 1
         np.random.seed(self.seed)
         
         # bernoulli rewards of each arm at each time instant

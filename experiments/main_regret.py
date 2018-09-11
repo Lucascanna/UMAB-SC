@@ -12,7 +12,7 @@ from DataLoader import DataLoader
 from Setting import Setting
 from Plotter import Plotter    
     
-def plot_configuration(config_name):
+def plot_configuration(config_name, policy_names):
     
     #set the regrets
     setting = Setting()
@@ -21,7 +21,7 @@ def plot_configuration(config_name):
     
     #load experiments
     loader = DataLoader()  
-    experiments = loader.load_config_experiments(config_name)
+    experiments = loader.load_config_experiments(config_name, policy_names)
     num_exp = len(list(experiments.values())[0])
     
     #retrieve configuration
@@ -78,14 +78,28 @@ def plot_configuration(config_name):
     
 def main():
     
-    for dir_name in os.listdir('results'):
-        print('Regret of configuration: ', dir_name)
+    config_names = ['MUUD'
+                    #'MUUS'
+                    ]
+    if not set(config_names).issubset(os.listdir('results')):
+        raise LookupError("There are no experiments for these configurations")
+    policies_name = [#'UCB1',
+                     #'UCB2',
+                     #'KLUCB',
+                     #'UCYCLE',
+                     'TS',
+                     #'TS2',
+                     #'UCB1SC'
+                     ]
+    
+    for config_name in config_names:
+        print('Regret of configuration: ', config_name)
         start_time = time.clock()
        
-        plot_configuration(dir_name)
+        plot_configuration(config_name, policies_name)
         
         exp_time = time.clock() - start_time
-        print('TIME TO COMPUTE AND PLOT REGRET OF ', dir_name , 'CONFIGURATION: ', exp_time)
+        print('TIME TO COMPUTE AND PLOT REGRET OF ', config_name , 'CONFIGURATION: ', exp_time)
         
     
 if __name__ == "__main__":
