@@ -12,9 +12,13 @@ My master thesis in Machine Learning
   - ~~Thopmson Sampling~~
   - ~~Thompson Sampling in epochs~~
   - ~~UCB1 that takes into account switching costs~~
-- ~~compute theoretical bounds of each policy~~ (mancano TS2 e UCB1SC) (problema con UCYCLE: numeri troppo grandi)
+  - ~~UCBV~~
+  - ~~MOSS~~
+- ~~compute theoretical bounds of each policy~~ (mancano UCBV, TS2 e UCB1SC) (problema con UCYCLE: numeri troppo grandi)
 - ~~compute variance of the regrets~~
 - ~~plot variance and theoretical bound~~
 - ~~adjust file saving procedure by separating in subfolders different policies~~
-- tune the alpha parameter of UCB2 and TS2
-- tune the delta parameter of UCYCLE
+- Parameter tuning:
+  - tune the alpha parameter of UCB2 and TS2
+  - tune the delta parameter of UCYCLE
+  - tune the parameters of UCBV
