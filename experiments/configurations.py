@@ -53,8 +53,9 @@ class MUUD_Configuration(Configuration):
         self.mu_max = np.max(self.mu)
         
         # deterministic switching costs
-        self.switch_costs = np.random.rand(self.K, self.K)
-        np.fill_diagonal(self.switch_costs,0)
+        self.gamma = np.random.rand(self.K, self.K)
+        np.fill_diagonal(self.gamma,0)
+        self.switch_costs = self.gamma
     
     
     def gen_stochastic_processes(self):
@@ -88,4 +89,4 @@ class MUUS_Configuration(MUUD_Configuration):
         super().gen_stochastic_processes()
         
         # stochastic switching costs
-        self.switch_costs = np.random.binomial(1, self.switch_costs, size= (self.N, self.K, self.K))
+        self.switch_costs = np.random.binomial(1, self.gamma, size= (self.N, self.K, self.K))

@@ -5,6 +5,8 @@ Created on Thu Jul 19 10:32:06 2018
 @author: lucas
 """
 import numpy as np
+import time
+import logging
 
 from Experiment import Experiment
 
@@ -15,26 +17,35 @@ class Executor:
     This is done to make the code as more modular as possible
     """
     
-    def run_configuration(self, config, policies, num_repetitions):
+    def run_configuration(self, config, policies, num_repetitions, time_horizon):
         """
         Runs all the given policies on a given configuration.
         Each policy is run num_repetition times.
         Results are written on a pikle file
         """
         for policy in policies:
+            str_info='Executing experiments of policy ' + policy.name + ' ...'
+            logging.info(str_info)
+            print(str_info)
+            start_time = time.clock()
+        
             for ii in range(num_repetitions):
                 experiment = Experiment(config, policy)
                 pulls, rewards, switch_fees = self.run_policy(experiment.config,policy)
                 experiment.set_results(pulls, rewards, switch_fees)
-                experiment.save_results('results/' + config.name + '/' + policy.name + '/exp' + str(ii) + '.pkl')
-
+                experiment.save_results('results/'+ str(num_repetitions) + 'rep' + str(time_horizon) + 'times/'+ config.name + '/' + policy.name + '/exp' + str(ii) + '.pkl')
+        
+            exp_time = time.clock() - start_time
+            str_info='TIME TO PERFORM EXPERIMENTS OF '+ policy.name + ' POLICY: '+ str(exp_time)
+            logging.info(str_info)
+            print(str_info)
     
     
     def run_policy(self, config, policy):
         """
         Runs the given policy on the given configuration
         """
-        policy.reset_state(config.K)
+        policy.reset_state(config.K, config.N)
         
         #switching costs are deterministic or stochastic depending on their shape
         isDeterministic = len(config.switch_costs.shape) == 2
@@ -89,10 +100,7 @@ class Executor:
             else:
                 p0[pulled[n]] += 1
             
-        
-        return pulled, rewards, switch_fees
-    
-    
+        return pulled, rewards, switch_fees    
     
         
     

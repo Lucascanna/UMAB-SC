@@ -7,6 +7,7 @@ Created on Wed Jul 18 17:02:18 2018
 
 from abc import ABC, abstractmethod
 from math import e, log, ceil, pi
+from scipy.special import btdtri
 from regrets import SamplingRegret, SwitchingRegret, TotalRegret
 import numpy as np
 
@@ -35,12 +36,12 @@ class Policy(ABC):
         """
         pass
     
-    @abstractmethod
-    def reset_state(self):
+    def reset_state(self, K, N):
         """
         Resets the state of the policy for a new iteration
         """
-        pass
+        self.K = K
+        self.N = N
     
     @abstractmethod
     def theoretical_bound(self, config, regret=None):
@@ -59,6 +60,13 @@ class Policy(ABC):
         return p * log(p / q) + (1 - p) * log((1 - p) / (1 - q))
     
     
+    def tau(self, r):
+        """
+        Auxiliary function to compute epoch lengths
+        """
+        return np.ceil(np.power(1+self.alpha, r))
+    
+    
     
 
 #%%
@@ -71,6 +79,8 @@ class UCB1_Policy(Policy):
     def __init__(self):
         super().__init__()
         self.name='UCB1'
+        self.color = 'gold'
+        self.err_color = 'goldenrod'
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
@@ -87,9 +97,6 @@ class UCB1_Policy(Policy):
         
         return np.argmax(u)
     
-    
-    def reset_state(self, K):
-        self.K = K
     
     
     def theoretical_bound(self, config, regret=None):
@@ -129,7 +136,7 @@ class UCB1_Policy(Policy):
             bound = np.insert(bound[:-1],0,0)
             return bound
         
-        print("Error! Default implementation executed!")
+        raise TypeError("Regret type does not exists!")
         
     
 #%%
@@ -139,19 +146,21 @@ class UCB2_Policy(Policy):
     It chooses the next arm to play, according to UCB2 policy
     """
     
-    def __init__(self):
+    def __init__(self, alpha=0.5):
         super().__init__()
-        self.name='UCB2'
-        self.alpha = 0.8
+        self.name='UCB2_'+ str(alpha)
+        self.color = 'k'
+        self.err_color = 'grey'
+        self.alpha = alpha
         
         
         
-    def reset_state(self, K):
-        self.K = K
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
         self.current_arm = -1
         self.epoch_len = 0
         self.epoch_steps = 0
-        self.epochs_arm = np.zeros(K, dtype=np.int32)
+        self.epochs_arm = np.ones(K, dtype=np.int32)
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
@@ -170,23 +179,24 @@ class UCB2_Policy(Policy):
         
         # epoch change
         if self.epoch_steps == self.epoch_len:
-            if n > self.K:
-                self.epochs_arm[self.current_arm] += 1
+            
+            #choose arm    
             T = p0 + p1
             mu_hat = np.true_divide(p1, T)
-            b = np.true_divide((1+self.alpha) * np.log(np.true_divide((e*n), self.__tau(self.epochs_arm))),
-                                2*self.__tau(self.epochs_arm)) ** 0.5
+            b = np.true_divide((1+self.alpha) * np.log(np.true_divide((e*n), self.tau(self.epochs_arm))),
+                                2*self.tau(self.epochs_arm)) ** 0.5
             u = mu_hat + b
             
             #update state
             self.current_arm = np.argmax(u)
             self.epoch_steps = 1
-            self.epoch_len = self.__tau(self.epochs_arm[self.current_arm]+1) - self.__tau(self.epochs_arm[self.current_arm])
+            self.epoch_len = max(1,self.tau(self.epochs_arm[self.current_arm]+1) - self.tau(self.epochs_arm[self.current_arm]))
+            self.epochs_arm[self.current_arm] += 1
             
             return self.current_arm
         
-    def __tau(self, r):
-        return np.ceil(np.power(1+self.alpha, r))
+        raise ValueError("Epoch steps greater than epoch length")
+
     
     def theoretical_bound(self, config, regret=None):
         
@@ -242,7 +252,7 @@ class UCB2_Policy(Policy):
             bound = np.insert(bound[:-ceil(start)],0,initial_regret)
             return bound
         
-        print("Error! Default implementation executed!")
+        raise TypeError("Regret type does not exists!")
         
 
 #%%
@@ -252,9 +262,14 @@ class KLUCB_Policy(Policy):
     It chooses the next arm to play, according to KL-UCB policy
     """
     
-    def __init__(self):
+    def __init__(self, precision=1e-6, max_iterations=50):
         super().__init__()
-        self.name='KLUCB'
+        self.name='KLUCB_'+ str(precision) + '_' + str(max_iterations)
+        self.color = 'b'
+        self.err_color = 'lightblue'
+        self.precision=precision
+        self.max_iterations=max_iterations
+        self.compute_indexes = np.vectorize(self.compute_arm_index)
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
@@ -266,20 +281,17 @@ class KLUCB_Policy(Policy):
         T = p0 + p1
         mu_hat = np.true_divide(p1, T)
         
-        compute_indexes = np.vectorize(self.__compute_arm_index)
-        q = compute_indexes(mu_hat, np.log(n)/T)
+        q = self.compute_indexes(mu_hat, np.log(n)/T)
         
         return np.argmax(q)
     
-    def __compute_arm_index(self, x, d, upperbound=1, lowerbound=0):
-        precision=1e-6
-        max_iterations=50
+    def compute_arm_index(self, x, d, upperbound=1, lowerbound=0):
         
         value = max(x, lowerbound)
         u = upperbound
         
         _count_iteration = 0
-        while _count_iteration < max_iterations and u - value > precision:
+        while _count_iteration < self.max_iterations and u - value > self.precision:
             _count_iteration += 1
             m = (value + u) / 2.
             if self.kl(x, m) > d:
@@ -288,10 +300,6 @@ class KLUCB_Policy(Policy):
                 value = m
                 
         return (value + u) / 2
-        
-    
-    def reset_state(self, K):
-        self.K = K
     
     
     def theoretical_bound(self, config, regret=None):
@@ -326,6 +334,133 @@ class KLUCB_Policy(Policy):
             
             bound = np.insert(bound[:-2],0,[0,0])
             return bound
+        
+        raise TypeError("Regret type does not exists!")
+        
+#%%
+
+class MOSS_Policy(Policy):
+    """
+    It chooses the next arm to play, according to MOSS policy.
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.name='MOSS'
+        self.color = 'g'
+        self.err_color = 'lightgreen'
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # init phase
+        if n < self.K:
+            return n
+        
+        # loop phase
+        T = p0 + p1
+        mu_hat = np.true_divide(p1, T)
+        b = (np.vectorize(max)(np.log(n/(self.K*T)), 0) / T)**0.5
+        u = mu_hat + b
+        
+        return np.argmax(u)
+    
+    
+    def theoretical_bound(self, config, regret=None):
+        n = np.arange(config.N)+1
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        delta = config.mu_max - suboptimal_mu
+        delta_min = np.min(delta)
+        
+        if type(regret) == SamplingRegret:            
+            bound = ((23*config.K)/delta_min)*np.log(np.vectorize(max)((110*(delta_min**2)*n)/config.K, 10**4))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound = ((46*config.K)/(delta_min**2))*np.log(np.vectorize(max)((110*(delta_min**2)*n)/config.K, 10**4))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == TotalRegret:
+            bound = ((23*config.K)/delta_min)*np.log(np.vectorize(max)((110*(delta_min**2)*n)/config.K, 10**4)) + ((46*config.K)/(delta_min**2))*np.log(np.vectorize(max)((110*(delta_min**2)*n)/config.K, 10**4))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        raise TypeError("Regret type does not exist!")
+        
+#%%
+
+class UCBV_Policy(Policy):
+    """
+    It chooses the next arm to play, according to UCBV policy
+    Explration function: log(n)
+    c = 1
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.name='UCBV'
+        self.color = 'm'
+        self.err_color = 'plum'
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # init phase
+        if n < self.K:
+            return n
+        
+        # loop phase
+        T = p0 + p1
+        mu_hat = np.true_divide(p1, T)
+        dev_hat = p0*mu_hat**2 + p1*(1-mu_hat)**2
+        var_hat = np.true_divide(dev_hat, T)
+        b = (np.true_divide(2*var_hat*log(n), T))**0.5 + (3*log(n))/T
+        u = mu_hat + b
+        
+        
+        return np.argmax(u)
+    
+    
+    
+    def theoretical_bound(self, config, regret=None):
+        n = np.arange(config.N)+config.K
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        delta = config.mu_max - suboptimal_mu
+        suboptimal_var = suboptimal_mu * (1-suboptimal_mu)
+        one_on_t = np.sum(1/n)
+        
+        if type(regret) == SamplingRegret:  
+            bound = 0
+            for ii in range(config.K - 1):
+                bound += (1 + 8*(suboptimal_var[ii]/delta[ii]**2 + 2/delta[ii])*np.log(n) + 24*suboptimal_var[ii]/delta[ii]**2 + 4/delta[ii] + one_on_t)*delta[ii]
+            bound = np.insert(bound[:-config.K], 0, arms)
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound = 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == TotalRegret:
+            bound_sam = 0
+            for ii in range(config.K - 1):
+                bound_sam += (1 + 8*(suboptimal_var[ii]/delta[ii]**2 + 2/delta[ii])*np.log(n) + 24*suboptimal_var[ii]/delta[ii]**2 + 4/delta[ii] + one_on_t)*delta[ii]
+            bound_sam = np.insert(bound_sam[:-config.K], 0, arms)
+            bound_sw = 16*np.log(n)*np.sum(np.true_divide(1, delta**2))
+            bound_sw = np.insert(bound_sw[:-1],0,0)
+            return bound_sam + bound_sw
+        
+        raise TypeError("Regret type does not exist!")
     
 
 #%%
@@ -335,9 +470,19 @@ class UCYCLE_Policy(Policy):
     It chooses the next arm to play, according to UCYCLE policy
     """
     
-    def __init__(self):
+    def __init__(self, delta=0.004):
         super().__init__()
         self.name='UCYCLE'
+        self.color = 'c'
+        self.err_color = 'lavender'
+        self.delta= delta
+        
+    
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.current_arm = -1
+        self.epoch_len = 0
+        self.epoch_steps = 0
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
@@ -359,8 +504,9 @@ class UCYCLE_Policy(Policy):
             
             T = p0 + p1
             mu_hat = np.true_divide(p1, T)
-            b = np.true_divide(np.log(np.true_divide(self.K * n**4, self.delta)),
-                                2*T) ** 0.5
+            #b = np.true_divide(np.log(np.true_divide(self.K * n**4, self.delta)),
+             #                   2*T) ** 0.5
+            b = np.true_divide(log(self.K * n), 2*T) ** 0.5 #delta= n^3
             u = mu_hat + b
             
             #update state
@@ -369,14 +515,8 @@ class UCYCLE_Policy(Policy):
             self.epoch_len = T[self.current_arm]
             
             return self.current_arm
-    
-    
-    def reset_state(self, K):
-        self.K=K
-        self.delta=0.05
-        self.current_arm = -1
-        self.epoch_len = 0
-        self.epoch_steps = 0
+        
+        raise ValueError("Epoch steps greater than epoch length")
     
     
     def theoretical_bound(self, config, regret=None):
@@ -388,7 +528,7 @@ class UCYCLE_Policy(Policy):
         delta_min = np.min(delta)
         
         if type(regret) == SamplingRegret:            
-            bound = (48*config.K/delta_min)*np.log(np.true_divide(config.K*(n**4), self.delta)) + (10/3)*self.delta*config.K*np.log(np.true_divide(2*n, config.K))
+            bound = (48*config.K/delta_min)*np.log(config.K*n) + (10/3)*n**3*config.K*np.log(np.true_divide(2*n, config.K))
             
             bound = np.insert(bound[:-1],0,0)
             return bound
@@ -405,7 +545,7 @@ class UCYCLE_Policy(Policy):
             bound = np.insert(bound[:-1],0,0)
             return bound
         
-        print("Error! Default implementation executed!")
+        raise TypeError("Regret type does not exist!")
         
     
 
@@ -419,16 +559,14 @@ class TS_Policy(Policy):
     def __init__(self):
         super().__init__()
         self.name='TS'
+        self.color = 'r'
+        self.err_color = 'tomato'
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
         
         samples = np.random.beta(p1 + 1, p0 + 1)
         return np.argmax(samples)
-    
-    
-    def reset_state(self, K):
-        self.K = K
         
     
     #constants are missing
@@ -452,58 +590,89 @@ class TS_Policy(Policy):
             bound = (np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(delta, kl_vect(suboptimal_mu, config.mu_max))) + 2*(np.log(n)+np.log(np.log(n))) * np.sum(np.true_divide(1, kl_vect(suboptimal_mu, config.mu_max)))
             return bound
         
-        print("Error! Default implementation executed!")
+        raise TypeError("Regret type does not exist!")
 
+    
 #%%
 
-
-class TS2_Policy(Policy):
+class OptTS_Policy(Policy):
     """
-    It chooses the next arm to play, according to Thompson Sampling policy in epochs
+    It chooses the next arm to play, according to Optimistic Thompson Sampling policy
     """
     
     def __init__(self):
         super().__init__()
-        self.name='TS2'
-        self.alpha = 0.8
+        self.name='OptTS'
+        self.color = 'darkorange'
+        self.err_color = 'orange'
+        self.max_vect = np.vectorize(max)
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
         
-        # epoch play
-        if self.epoch_steps < self.epoch_len:
-            self.epoch_steps += 1
-            return self.current_arm
+        # init phase
+        if n < self.K:
+            return n
         
-        # epoch change
-        if self.epoch_steps == self.epoch_len:                
-                
-            samples = np.random.beta(p1 + 1, p0 + 1)
-            
-            #update state
-            self.current_arm = np.argmax(samples)
-            self.epoch_steps = 1
-            self.epoch_len = self.__tau(self.epochs_arm[self.current_arm]+1) - self.__tau(self.epochs_arm[self.current_arm])
-            self.epochs_arm[self.current_arm] += 1
-            
-            return self.current_arm
-
+        T = p0 + p1
+        mu_hat = np.true_divide(p1, T)
         
-    def __tau(self, r):
-        return np.ceil(np.power(1+self.alpha, r))
+        samples = self.max_vect(np.random.beta(p1 + 1, p0 + 1), mu_hat)
+        return np.argmax(samples)
+        
     
-    
-    def reset_state(self, K):
-        self.K = K
-        self.current_arm = -1
-        self.epoch_len = 0
-        self.epoch_steps = 0
-        self.epochs_arm = np.zeros(K, dtype=np.int32)
-    
-    
+    #constants are missing
     def theoretical_bound(self, config, regret=None):
         pass
+        
 
+#%%
+    
+class BayesUCB_Policy(Policy):
+    """
+    It chooses the next arm to play, according to Bayes-UCB policy
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.name='BayesUCB'
+        self.color = 'indigo'
+        self.err_color = 'mediumpurple'
+        self.quantile = np.vectorize(btdtri)
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        quantiles = self.quantile(p1 + 1, p0 + 1, 1-(1/max(1,n)))
+
+        return np.argmax(quantiles)
+        
+    
+    def theoretical_bound(self, config, regret=None):
+        n = np.arange(config.N)+1
+        arms = np.arange(config.K)
+        suboptimal_arms = np.delete(arms, config.best_arm)
+        suboptimal_mu = config.mu[suboptimal_arms]
+        
+        delta = config.mu_max - suboptimal_mu
+        kl_vect = np.vectorize(self.kl)
+        d = kl_vect(suboptimal_mu, config.mu_max)
+        
+        if type(regret) == SamplingRegret:   
+            bound = np.log(n)*np.sum(np.true_divide(delta, d))
+            bound = np.insert(bound[:-1],0,0)
+            return bound
+        
+        if type(regret) == SwitchingRegret:
+            bound = n
+            return bound
+        
+        if type(regret) == TotalRegret:
+            bound = n
+            return bound
+        
+        raise TypeError("Regret type does not exist!")
+    
 #%%
         
 class UCB1SC_Policy(Policy):
@@ -515,6 +684,15 @@ class UCB1SC_Policy(Policy):
     def __init__(self):
         super().__init__()
         self.name='UCB1SC'
+        self.color = 'darkgrey'
+        self.err_color = 'lightgrey'
+        
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.init_epoch = 0
+        self.init_time = 0
+        self.end_init_phase = K**2 - 1
+        self.current_arm = -1
         
     
     def choose_arm(self, n, p0, p1, s0, s1):
@@ -539,24 +717,260 @@ class UCB1SC_Policy(Policy):
         # loop phase
         T = p0 + p1
         mu_hat = np.true_divide(p1, T)
+        b = (np.true_divide(2*log(n), T))**0.5
         if s0 is None:
             gamma_hat = s1[self.current_arm,:]
+            c = gamma_hat/(self.N - n)
         else:
-            #s = s0 + s1
             gamma_hat = np.true_divide(s1, s0 + s1)[self.current_arm,:]
-        b = (np.true_divide(2*log(n), T))**0.5
-        u = mu_hat + 2*b - gamma_hat
+            c = (gamma_hat - b)/(self.N - n)
+        u = mu_hat + b - c
         
         self.current_arm = np.argmax(u)
         return self.current_arm
-    
-    
-    def reset_state(self, K):
-        self.K = K
-        self.init_epoch = 0
-        self.init_time = 0
-        self.end_init_phase = K**2 - 1
-        self.current_arm = -1
+
     
     def theoretical_bound(self, config, regret=None):
         pass
+    
+#%%
+
+
+class TS2_Policy(Policy):
+    """
+    It chooses the next arm to play, according to Thompson Sampling policy in epochs
+    """
+    
+    def __init__(self, alpha=0.1):
+        super().__init__()
+        self.name='TS2_' + str(alpha)
+        self.color = 'pink'
+        self.err_color = 'lightpink'
+        self.alpha = alpha
+        
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.current_arm = -1
+        self.epoch_len = 0
+        self.epoch_steps = 0
+        self.epochs_arm = np.zeros(K, dtype=np.int32)
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # epoch play
+        if self.epoch_steps < self.epoch_len:
+            self.epoch_steps += 1
+            return self.current_arm
+        
+        # epoch change
+        if self.epoch_steps == self.epoch_len:                
+                
+            samples = np.random.beta(p1 + 1, p0 + 1)
+            
+            #update state
+            self.current_arm = np.argmax(samples)
+            self.epoch_steps = 1
+            self.epoch_len = max(1,self.tau(self.epochs_arm[self.current_arm]+1) - self.tau(self.epochs_arm[self.current_arm]))
+            self.epochs_arm[self.current_arm] += 1
+            
+            return self.current_arm
+        
+        raise ValueError("Epoch steps greater than epoch length")
+    
+    
+    def theoretical_bound(self, config, regret=None):
+        pass
+    
+#%%
+        
+class KLUCB2_Policy(Policy):
+    """
+    It chooses the next arm to play, according to KL-UCB2 policy
+    """
+    
+    def __init__(self, precision=1e-6, max_iterations=50, alpha=0.1):
+        super().__init__()
+        self.name='KLUCB2_'+ str(precision) + '_' + str(max_iterations) + '_' + str(alpha)
+        self.color = 'sienna'
+        self.err_color = 'peru'
+        self.compute_indexes = np.vectorize(self.compute_arm_index)
+        self.precision=precision
+        self.max_iterations=max_iterations
+        self.alpha = alpha
+        
+    
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.current_arm = -1
+        self.epoch_len = 0
+        self.epoch_steps = 0
+        self.epochs_arm = np.ones(K, dtype=np.int32)
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # init phase
+        if n < self.K:
+            self.current_arm=n
+            return n
+        
+        # loop phase
+        
+        # epoch play
+        if self.epoch_steps < self.epoch_len:
+            self.epoch_steps += 1
+            return self.current_arm
+        
+        # epoch change
+        if self.epoch_steps == self.epoch_len:
+            
+            #choose arm    
+            T = p0 + p1
+            mu_hat = np.true_divide(p1, T)
+
+            q = self.compute_indexes(mu_hat, np.log(n)/T)
+            
+            #update state
+            self.current_arm = np.argmax(q)
+            self.epoch_steps = 1
+            self.epoch_len = max(1,self.tau(self.epochs_arm[self.current_arm]+1) - self.tau(self.epochs_arm[self.current_arm]))
+            self.epochs_arm[self.current_arm] += 1
+            
+            return self.current_arm
+        
+        raise ValueError("Epoch steps greater than epoch length")
+        
+    
+    def compute_arm_index(self, x, d, upperbound=1, lowerbound=0):
+        
+        value = max(x, lowerbound)
+        u = upperbound
+        
+        _count_iteration = 0
+        while _count_iteration < self.max_iterations and u - value > self.precision:
+            _count_iteration += 1
+            m = (value + u) / 2.
+            if self.kl(x, m) > d:
+                u = m
+            else:
+                value = m
+                
+        return (value + u) / 2
+    
+    
+    def theoretical_bound(self, config, regret=None):
+        pass
+    
+#%%
+
+class BayesUCB2_Policy(Policy):
+    """
+    It chooses the next arm to play, according to Bayes-UCB2 policy
+    """
+    
+    def __init__(self, alpha=0.1):
+        super().__init__()
+        self.name='BayesUCB2_' + str(alpha)
+        self.color = 'orangered'
+        self.err_color = 'coral'
+        self.quantile = np.vectorize(btdtri)
+        self.alpha = alpha
+        
+        
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.current_arm = -1
+        self.epoch_len = 0
+        self.epoch_steps = 0
+        self.epochs_arm = np.zeros(K, dtype=np.int32)
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # epoch play
+        if self.epoch_steps < self.epoch_len:
+            self.epoch_steps += 1
+            return self.current_arm
+        
+        # epoch change
+        if self.epoch_steps == self.epoch_len:
+            
+            #choose arm    
+            quantiles = self.quantile(p1 + 1, p0 + 1, 1-(1/max(1,n)))
+            
+            #update state
+            self.current_arm = np.argmax(quantiles)
+            self.epoch_steps = 1
+            self.epoch_len = max(1,self.tau(self.epochs_arm[self.current_arm]+1) - self.tau(self.epochs_arm[self.current_arm]))
+            self.epochs_arm[self.current_arm] += 1
+            
+            return self.current_arm
+        
+        raise ValueError("Epoch steps greater than epoch length")
+        
+    
+    def theoretical_bound(self, config, regret=None):
+        pass
+    
+#%%
+
+class OptTS2_Policy(Policy):
+    """
+    It chooses the next arm to play, according to Optimistic Thompson Sampling 2 policy
+    """
+    
+    def __init__(self, alpha=0.1):
+        super().__init__()
+        self.name='OptTS2_' + str(alpha)
+        self.color = 'olive'
+        self.err_color = 'y'
+        self.max_vect = np.vectorize(max)
+        self.alpha=alpha
+        
+        
+    def reset_state(self, K, N):
+        super().reset_state(K,N)
+        self.current_arm = -1
+        self.epoch_len = 0
+        self.epoch_steps = 0
+        self.epochs_arm = np.ones(K, dtype=np.int32)
+        
+    
+    def choose_arm(self, n, p0, p1, s0, s1):
+        
+        # init phase
+        if n < self.K:
+            self.current_arm=n
+            return n
+        
+        # epoch play
+        if self.epoch_steps < self.epoch_len:
+            self.epoch_steps += 1
+            return self.current_arm
+        
+        # epoch change
+        if self.epoch_steps == self.epoch_len:
+            
+            #choose arm    
+            T = p0 + p1
+            mu_hat = np.true_divide(p1, T)
+        
+            samples = self.max_vect(np.random.beta(p1 + 1, p0 + 1), mu_hat)
+            
+            #update state
+            self.current_arm = np.argmax(samples)
+            self.epoch_steps = 1
+            self.epoch_len = max(1,self.tau(self.epochs_arm[self.current_arm]+1) - self.tau(self.epochs_arm[self.current_arm]))
+            self.epochs_arm[self.current_arm] += 1
+            
+            return self.current_arm
+        
+        raise ValueError("Epoch steps greater than epoch length")
+        
+    
+    #constants are missing
+    def theoretical_bound(self, config, regret=None):
+        pass
+        
+    

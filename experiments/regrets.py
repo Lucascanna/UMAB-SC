@@ -19,7 +19,7 @@ class Regret(ABC):
         super().__init__()
     
     @abstractmethod
-    def compute_regret(self, pulls, config):
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
         pass
         
         
@@ -27,7 +27,7 @@ class Regret(ABC):
         
 #%%
         
-class SamplingRegret:
+class SamplingRegret(Regret):
     """
     Pseudo-regret assuming to know the best arm:
         E[R] = mu_best * N - mu_i * E[T_i]
@@ -38,12 +38,12 @@ class SamplingRegret:
         self.description='Sampling Regret'
         
     
-    def compute_regret(self, pulls, config):
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
         mu_best = np.max(config.mu)
         
-        rewards = config.mu[pulls]
+        pseudo_rewards = config.mu[pulls]
         
-        regret = mu_best - rewards
+        regret = mu_best - pseudo_rewards
         
         cum_regret = np.cumsum(regret)
         
@@ -52,9 +52,9 @@ class SamplingRegret:
 
 #%%
         
-class SwitchingRegret():
+class SwitchingRegret(Regret):
     """
-    Regret caused by the switching among arms:
+    Pseudo-Regret caused by the switching among arms:
         R = gamma_i,j * S_i,j
     """
     
@@ -63,16 +63,11 @@ class SwitchingRegret():
         self.name='sw'
         self.description='Switching Regret'
     
-    def compute_regret(self, pulls, config):
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
         from_vect = pulls[:-1]
         to_vect = pulls[1:]
         
-        # distinguish between deterministic and stochastic switching costs
-        if len(config.switch_costs.shape) == 2:
-            regret = config.switch_costs[from_vect, to_vect]
-        else:
-            n = np.arange(config.N)[1:]
-            regret = config.switch_costs[n, from_vect, to_vect]
+        regret = config.gamma[from_vect, to_vect]
         
         cum_regret = np.cumsum(regret)
         cum_regret = np.insert(cum_regret, 0, 0)
@@ -81,7 +76,7 @@ class SwitchingRegret():
 
 #%%
         
-class TotalRegret():
+class TotalRegret(Regret):
     """
     The sum of sampling and switching regret
     """
@@ -91,14 +86,44 @@ class TotalRegret():
         self.name='tot'
         self.description='Total Regret'
     
-    def compute_regret(self, pulls, config):
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
         samp_regret = SamplingRegret()
-        samp_regret_values = samp_regret.compute_regret(pulls, config)
+        samp_regret_values = samp_regret.compute_regret(config, pulls, true_rewards, true_switch_fees)
         
         sw_regret = SwitchingRegret()
-        sw_regret_values = sw_regret.compute_regret(pulls, config)
+        sw_regret_values = sw_regret.compute_regret(config, pulls, true_rewards, true_switch_fees)
         
         return samp_regret_values + sw_regret_values
+    
+#%%
+    
+class BudgetRegret(Regret):
+    """
+    The pseudo-regret considering budget on switching costs
+    """
+    def __init__(self, B):
+        super().__init__()
+        self.name='bdg'
+        self.description='Budget Regret'
+        self.B = B
+    
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
+        mu_best = np.max(config.mu) 
+        pseudo_rewards = config.mu[pulls]
         
+        from_vect = pulls[:-1]
+        to_vect = pulls[1:]
+        pseudo_costs = config.gamma[from_vect, to_vect]
+        pseudo_costs = np.insert(pseudo_costs,0,0)
+        cum_costs = np.cumsum(pseudo_costs)
+        n_hat = np.argmax(cum_costs > self.B)
+        
+        #soluzione 1
+        if not n_hat == 0:
+            pseudo_rewards[n_hat:] = 0
+        regret = mu_best - pseudo_rewards
+        cum_regret = np.cumsum(regret)
+        
+        return cum_regret
         
         
