@@ -18,7 +18,9 @@ My master thesis in Machine Learning
 - ~~compute variance of the regrets~~
 - ~~plot variance and theoretical bound~~
 - ~~adjust file saving procedure by separating in subfolders different policies~~
-- Parameter tuning:
+- ~~Parameter tuning:
   - tune the alpha parameter of UCB2 and TS2
   - tune the delta parameter of UCYCLE
-  - tune the parameters of UCBV
+  - tune the parameters of UCBV~~
+- Add budget regret
+- Save policies and configuration separatly so to reduce memory usage
