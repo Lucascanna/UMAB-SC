@@ -21,7 +21,7 @@ class Plotter():
         num_lines = regrets.shape[0]
         num_plots = regrets.shape[1]
     
-        plt.figure(1, figsize=(3.5*num_plots,5))
+        plt.figure(1, figsize=(10.5, 1.7*num_plots))
             
         for ii in range(num_plots):
             plt.subplot(num_plots,1,ii+1)

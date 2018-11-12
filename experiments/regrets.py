@@ -125,5 +125,33 @@ class BudgetRegret(Regret):
         cum_regret = np.cumsum(regret)
         
         return cum_regret
+    
+#%%
+        
+class BudgetedReward(Regret):
+    """
+    The pseudo-reward constrained by the budget on switching costs
+    """
+    def __init__(self, B):
+        super().__init__()
+        self.name = 'Brew'
+        self.description='Budgeted Reward'
+        self.B=B
+    
+    def compute_regret(self, config, pulls, true_rewards, true_switch_fees):
+        pseudo_rewards = config.mu[pulls]
+        
+        from_vect = pulls[:-1]
+        to_vect = pulls[1:]
+        pseudo_costs = config.gamma[from_vect, to_vect]
+        pseudo_costs = np.insert(pseudo_costs,0,0)
+        cum_costs = np.cumsum(pseudo_costs)
+        n_hat = np.argmax(cum_costs > self.B)
+        
+        if not n_hat == 0:
+            pseudo_rewards[n_hat:] = 0
+        cum_reward = np.cumsum(pseudo_rewards)
+        
+        return cum_reward
         
         
