@@ -11,14 +11,25 @@ class DataLoader():
     
     def load_config_experiments(self, config_name, policy_names, num_rep, N):
         path = 'results/'+str(num_rep)+'rep'+str(N)+'times/'+config_name
-        if not set(policy_names).issubset(os.listdir(path)):
-            raise LookupError("There are no experiments for this setting")
     
         experiments = {}
         for policy_name in policy_names:
             experiments[policy_name]=[]
-            for filename in os.listdir(path+'/'+policy_name):
-                exp = pk.load(open(path+'/'+policy_name+'/'+filename, 'rb'))
+            for ii in range(num_rep):
+                with open(path+'/exp' + str(ii) + '/' + policy_name + '.pkl', 'rb') as f:
+                    exp = pk.load(f)  
                 experiments[policy_name].append(exp)
         return experiments
+    
+    
+    def load_realizations(self, config_name, num_rep, N):
+        path = 'results/'+str(num_rep)+'rep'+str(N)+'times/'+config_name
+        reals = []
+        for ii in range(num_rep):
+            with open(path+'/exp'+str(ii)+'/config.pkl', 'rb') as f:
+                real = pk.load(f)
+            reals.append(real)
+            
+        return reals
+        
         

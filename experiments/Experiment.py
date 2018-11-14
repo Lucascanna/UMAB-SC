@@ -12,11 +12,9 @@ class Experiment(object):
     An Experiment is the execution of several policies on one instance of a specific configuration
     """
     
-    def __init__(self, config, policy):
+    def __init__(self, policy):
         super(Experiment, self).__init__()
-        self.config = config
         self.policy = policy
-        self.config.gen_stochastic_processes()
         
         
     def set_results(self, pulls, reward, switch_fees):
@@ -25,5 +23,6 @@ class Experiment(object):
         self.swith_fees = switch_fees
         
     def save_results(self, filepath):
-        os.makedirs(os.path.dirname(filepath), exist_ok=True) 
-        pk.dump(self, open(filepath, 'wb'))
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'wb') as f:
+            pk.dump(self, f)

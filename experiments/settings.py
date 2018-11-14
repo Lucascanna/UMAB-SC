@@ -15,13 +15,13 @@ LOG_FILENAME = 'log_info.log'
 N = 2**17
 num_repetitions=20
 configs = [
-            c.MUUD_Configuration(N),
-#            c.MUUS_Configuration(N),
+#            c.MUUD_Configuration(N),
+            c.MUUS_Configuration(N),
 #            c.MCUD_Configuration(N)
             ]
 policies = [
-#            p.UCB1_Policy(), 
-            p.UCB2_Policy(),
+            p.UCB1_Policy(), 
+#            p.UCB2_Policy(),
 #            p.TS_Policy(),
 #            p.TS2_Policy(),
 #            p.OptTS_Policy(),
@@ -33,12 +33,12 @@ policies = [
 #            p.UCBV_Policy(),
 #            p.BayesUCB_Policy(),
 #            p.BayesUCB2_Policy(),
-#            p.UCB1SC_Policy(),
+            p.UCB1SC_Policy(),
 #            p.TSSC_Policy(),
 #            p.BayesUCBSC_Policy(),
 #            p.BayesUCB2SC_Policy(),
 #            p.TS2SC_Policy(),
-            p.UCB2SC_Policy()
+#            p.UCB2SC_Policy()
             ]
 
 # plot setting

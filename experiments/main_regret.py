@@ -23,8 +23,8 @@ def plot_configuration(config_name, policy_names):
     experiments = loader.load_config_experiments(config_name, policy_names, st.num_repetitions, st.N)
     num_exp = len(list(experiments.values())[0])
     
-    #retrieve configuration
-    config = list(experiments.values())[0][0].config
+    #load the realizations
+    reals = loader.load_realizations(config_name, st.num_repetitions, st.N)
     
     #retrive policies and their colors
     policies=[]
@@ -43,9 +43,10 @@ def plot_configuration(config_name, policy_names):
         curr_policy = policies[pol_idx]
         for exp_idx in range(num_exp):
             curr_exp = experiments[curr_policy.name][exp_idx]
+            curr_real = reals[exp_idx]
             for reg_idx in range(num_regrets):
                 curr_regr = st.regrets[reg_idx]
-                regret[exp_idx, pol_idx, reg_idx, :] = curr_regr.compute_regret(curr_exp.config, curr_exp.pulls, curr_exp.reward, curr_exp.swith_fees)[::st.sample_rate]
+                regret[exp_idx, pol_idx, reg_idx, :] = curr_regr.compute_regret(curr_real, curr_exp.pulls, curr_exp.reward, curr_exp.swith_fees)[::st.sample_rate]
                 
     mean_regret = np.mean(regret, axis=0)
     n = np.arange(st.N)[::st.sample_rate]
@@ -60,7 +61,7 @@ def plot_configuration(config_name, policy_names):
         th_bounds = np.zeros((num_policies, num_regrets, ceil(st.N/st.sample_rate)))
         for pol_idx in range(num_policies):
             for reg_idx in range(num_regrets):
-                th_bounds[pol_idx, reg_idx, :] = policies[pol_idx].theoretical_bound(config, st.regrets[reg_idx])[::st.sample_rate]
+                th_bounds[pol_idx, reg_idx, :] = policies[pol_idx].theoretical_bound(reals[0], st.regrets[reg_idx])[::st.sample_rate]
     
     #plot the regrets
     titles = []
